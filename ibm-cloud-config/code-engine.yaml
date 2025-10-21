@@ -1,0 +1,80 @@
+# IBM Cloud Code Engine Application Configuration
+apiVersion: codeengine.cloud.ibm.com/v1beta2
+kind: App
+metadata:
+  name: voting-system
+  project: default
+spec:
+  image: "us.icr.io/your-namespace/voting-system:latest"
+  runenv: "nodejs18"
+  instances: 1
+  minscale: 1
+  maxscale: 3
+  port: 3000
+  envconfig:
+    - name: NODE_ENV
+      value: "production"
+    - name: PORT
+      value: "3000"
+    - name: DATABASE_URL
+      value: "file:./app.db"
+    - name: ENCRYPTION_KEY
+      valueFrom:
+        secretKeyRef:
+          name: voting-secrets
+          key: encryption-key
+    - name: SESSION_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: voting-secrets
+          key: session-secret
+    - name: CSRF_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: voting-secrets
+          key: csrf-secret
+    - name: IBM_COS_ENDPOINT
+      valueFrom:
+        secretKeyRef:
+          name: cos-credentials
+          key: endpoint
+    - name: IBM_COS_ACCESS_KEY_ID
+      valueFrom:
+        secretKeyRef:
+          name: cos-credentials
+          key: access-key-id
+    - name: IBM_COS_SECRET_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: cos-credentials
+          key: secret-access-key
+    - name: IBM_COS_REGION
+      valueFrom:
+        secretKeyRef:
+          name: cos-credentials
+          key: region
+    - name: IBM_COS_BUCKET_NAME
+      valueFrom:
+        secretKeyRef:
+          name: cos-credentials
+          key: bucket-name
+  resources:
+    requests:
+      cpu: "0.25"
+      memory: "512Mi"
+    limits:
+      cpu: "1"
+      memory: "1Gi"
+  healthcheck:
+    liveness:
+      path: "/api/health"
+      port: 3000
+      initialDelay: 60
+      timeout: 10
+      period: 30
+    readiness:
+      path: "/api/ready"
+      port: 3000
+      initialDelay: 10
+      timeout: 5
+      period: 10

@@ -1,0 +1,205 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  name            String?
+  phone           String?
+  password        String
+  role            UserRole  @default(VOTER)
+  apartmentUnit   String?
+  apartmentSize   Float?
+  language        String    @default("en")
+  isActive        Boolean   @default(true)
+  isVerified      Boolean   @default(false)
+  verifiedBy      String?
+  verifiedAt      DateTime?
+  resetToken      String?
+  resetTokenExpiry DateTime?
+  blockedUntil    DateTime?
+  blockReason     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  candidateProfile Candidate?
+  votes           Vote[]
+  auditLogs       AuditLog[]
+  securityLogs    SecurityLog[]
+  
+  @@map("users")
+}
+
+model Candidate {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  projectId   String
+  name        String
+  photo       String?
+  vision      String?
+  mission     String?
+  reason      String?
+  videos      String?  // JSON array of video URLs
+  images      String?  // JSON array of image URLs
+  teamMembers String?  // JSON array of team members
+  socialMedia String?  // JSON object with social media links
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  user        User     @relation(fields: [userId], references: [id])
+  project     VotingProject @relation(fields: [projectId], references: [id])
+  votes       Vote[]
+  
+  @@map("candidates")
+}
+
+model VotingProject {
+  id                String            @id @default(cuid())
+  title             String
+  description       String?
+  votingType        VotingType        @default(HEAD_OF_APARTMENT)
+  votingMethod      VotingMethod      @default(ONE_PERSON_ONE_VOTE)
+  totalArea         Float?            // For weighted voting method 2 (manual input)
+  startDate         DateTime
+  endDate           DateTime
+  isActive          Boolean           @default(false)
+  isPublished       Boolean           @default(false)  // Whether the project is published and visible
+  status            VotingStatus      @default(UPCOMING)  // UPCOMING, ACTIVE, ENDED
+  requiresSupervisorReview Boolean    @default(false)  // Whether supervisor review is required
+  supervisorApprovalStatus String?    // PENDING, APPROVED, REJECTED
+  supervisorComments String?          // Supervisor's comments/notes
+  supervisorReviewedBy String?        // Supervisor user ID who reviewed
+  supervisorReviewedAt DateTime?      // When supervisor reviewed
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  // Relations
+  candidates        Candidate[]
+  votes             Vote[]
+  auditLogs         AuditLog[]
+  
+  @@map("voting_projects")
+}
+
+model Vote {
+  id          String   @id @default(cuid())
+  userId      String
+  candidateId String
+  projectId   String
+  weight      Float    @default(1.0) // Vote weight based on apartment size
+  ipAddress   String?
+  userAgent   String?
+  location    String?  // JSON with lat/lng
+  timestamp   DateTime @default(now())
+  
+  // Relations
+  user        User     @relation(fields: [userId], references: [id])
+  candidate   Candidate @relation(fields: [candidateId], references: [id])
+  project     VotingProject @relation(fields: [projectId], references: [id])
+  
+  @@unique([userId, projectId])
+  @@map("votes")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  action      String
+  details     String?  // JSON with additional details
+  ipAddress   String?
+  userAgent   String?
+  timestamp   DateTime @default(now())
+  
+  // Relations
+  user        User?    @relation(fields: [userId], references: [id])
+  project     VotingProject? @relation(fields: [projectId], references: [id])
+  projectId   String?
+  
+  @@map("audit_logs")
+}
+
+model Report {
+  id          String   @id @default(cuid())
+  projectId   String
+  generatedBy String
+  notes       String?
+  approvedBy  String?
+  approvedAt  DateTime?
+  createdAt   DateTime @default(now())
+  
+  @@map("reports")
+}
+
+model SecurityLog {
+  id        String   @id @default(cuid())
+  type      String
+  details   String   // JSON with additional details
+  severity  String   // LOW, MEDIUM, HIGH, CRITICAL
+  userId    String?
+  ipAddress String?
+  userAgent String?
+  timestamp DateTime @default(now())
+  
+  // Relations
+  user      User?    @relation(fields: [userId], references: [id])
+  
+  @@map("security_logs")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  sessionId String   @unique
+  userId    String
+  data      String   // JSON with session data
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([sessionId])
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+enum UserRole {
+  VOTER
+  CANDIDATE
+  COMMITTEE
+  AUDITOR
+  SUPERVISOR
+  SUPERADMIN
+}
+
+enum VotingStatus {
+  UPCOMING
+  ACTIVE
+  ENDED
+}
+
+enum VotingType {
+  HEAD_OF_APARTMENT
+  POLICY
+  ACTION_PLAN
+  SURVEY
+}
+
+enum VotingMethod {
+  ONE_PERSON_ONE_VOTE
+  WEIGHTED_BY_SIZE_MANUAL
+  WEIGHTED_BY_SIZE_VOTERS
+}
